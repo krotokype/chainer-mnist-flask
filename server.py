@@ -35,4 +35,5 @@ def predict():
     y = model.predictor(x)
     return jsonify(y.data[0].tolist())
 
-app.run()
+if __name__ == '__main__':
+    app.run()
