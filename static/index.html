@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>chainer-mnist-flask</title>
+  </head>
+  <body>
+    <div>
+      <button id="clear">clear</button>
+    </div>
+    <div style="float:left">
+      <canvas id="source" width="28" height="28" style="border:1px solid gray"></canvas>
+    </div>
+    <table>
+      <tbody></tbody>
+    </table>
+    <div style="clear:both">
+      <button id="predict">predict</button>
+    </div>
+    <div>
+    </div>
+    <script>
+     const scale = 10;
+     const source = document.querySelector('#source');
+     source.width *= scale;
+     source.height *= scale;
+     const sourceCtx = source.getContext('2d');
+
+     const resetSource = () => {
+       sourceCtx.fillStyle = '#fff';
+       sourceCtx.fillRect(0, 0, source.width, source.height);
+     };
+
+     const getCoord = (evt) => {
+       const rect = source.getBoundingClientRect();
+       return {
+         x: evt.clientX - rect.left,
+         y: evt.clientY - rect.top
+       };
+     };
+
+     const moveTo = ({ x, y }) => {
+       sourceCtx.beginPath();
+       sourceCtx.moveTo(x, y);
+     };
+
+     const lineTo = ({ x, y }) => {
+       sourceCtx.lineTo(x, y);
+       sourceCtx.stroke();
+     };
+
+     const input = document.createElement('canvas');
+     input.width = 28;
+     input.height = 28;
+     const inputCtx = input.getContext('2d');
+
+     const convertIntoX = () => {
+       inputCtx.drawImage(source, 0, 0, source.width, source.height, 0, 0, input.width, input.height);
+       const { data } = inputCtx.getImageData(0, 0, input.width, input.height);
+       const x = [];
+       for (let i = 0, iz = data.length; i < iz; i += 4) {
+         x.push(1 - data[i] / 255)
+       }
+       return x;
+     };
+
+     const result = document.querySelector('tbody');
+
+     const emptyResult = () => {
+       while (result.firstChild) result.removeChild(result.firstChild);
+     };
+
+     let lastWhich = -1;
+
+     source.addEventListener('mousedown', (evt) => {
+       if (lastWhich !== -1) return;
+       lastWhich = evt.which;
+       sourceCtx.lineCap = 'round';
+       sourceCtx.lineWidth = scale;
+       sourceCtx.strokeStyle = '#000';
+       moveTo(getCoord(evt));
+     });
+
+     window.addEventListener('mousemove', (evt) => {
+       if (lastWhich === -1) return;
+       if (lastWhich !== evt.which) return;
+       const c = getCoord(evt);
+       lineTo(c);
+       moveTo(c);
+     });
+
+     window.addEventListener('mouseup', (evt) => {
+       if (lastWhich === -1) return;
+       if (lastWhich !== evt.which) return;
+       lastWhich = -1;
+       lineTo(getCoord(evt));
+     });
+
+     const clear = () => {
+       emptyResult();
+       resetSource();
+     };
+
+     clear();
+     document.querySelector('#clear').addEventListener('click', clear);
+
+     const predict = (x, fn) => {
+       const xhr = new XMLHttpRequest();
+       xhr.open('POST', '/predict');
+       xhr.addEventListener('load', () => {
+         fn(xhr.response);
+       });
+       xhr.setRequestHeader('Content-Type', 'application/json');
+       xhr.responseType = 'json';
+       xhr.send(JSON.stringify(x));
+     };
+
+     document.querySelector('#predict').addEventListener('click', () => {
+       predict(convertIntoX(), (y) => {
+         emptyResult();
+         const maxI = y.indexOf(Math.max.apply(null, y));
+         y.forEach((p, i) => {
+           const tr = result.appendChild(document.createElement('tr'));
+           const th = tr.appendChild(document.createElement('th'));
+           const td = tr.appendChild(document.createElement('td'));
+           if (i === maxI) {
+             tr.style.backgroundColor = 'orange';
+           }
+           th.textContent = i;
+           td.textContent = p.toFixed(3);
+           td.style.textAlign = 'right';
+         });
+       });
+     });
+    </script>
+  </body>
+</html>
